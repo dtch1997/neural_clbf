@@ -817,6 +817,7 @@ class Trainer(nn.Module):
 
         from functorch import vmap, jacfwd
         K = vmap(jacfwd(unbatched_u, argnums=0))(x, x_ref, u_ref)
+        K = K.detach()
 
         A = Jx
         B = Ju
