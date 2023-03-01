@@ -817,7 +817,8 @@ class Trainer(nn.Module):
 
         for b in range(B):
             for i in range(m):
-                K[b,i] = torch.autograd.grad(u[b,i], x[b])
+                output = torch.autograd.grad(u[b,i], x, retain_graph=True)[0]
+                K[b, i] = output[b]
 
         A = Jx
         B = Ju
