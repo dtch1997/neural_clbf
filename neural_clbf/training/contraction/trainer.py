@@ -43,6 +43,7 @@ class Trainer(nn.Module):
         "controller_dt",
         "sim_dt",
         "demonstration_noise",
+        "analytic_dynamics",
     ]
     n_state_dims: int
     n_control_dims: int
@@ -57,6 +58,7 @@ class Trainer(nn.Module):
     controller_dt: float
     sim_dt: float
     demonstration_noise: float
+    analytic_dynamics: bool
 
     def __init__(
         self,
@@ -803,28 +805,31 @@ class Trainer(nn.Module):
 
         # Get dynamics Jacobians. Only requires one call to grad, since this will
         # also compute the gradient through u
-        closed_loop_jacobian = self.jacobian(xdot.reshape(-1, self.n_state_dims, 1), x)
-        with torch.no_grad():
-            Jx, Ju = self.dynamics_jacobian(self.dynamics, x, u, delta=1e-3)
+        if self.analytic_dynamics: 
+            print("Using analytic dynamics")
+            closed_loop_jacobian = self.jacobian(xdot.reshape(-1, self.n_state_dims, 1), x)
+        else: 
+            with torch.no_grad():
+                Jx, Ju = self.dynamics_jacobian(self.dynamics, x, u, delta=1e-3)
 
-        def unbatched_u(x, x_ref, u_ref):
-            assert len(x.shape) == 1
-            x = x.view(1, -1)
-            x_ref = x_ref.view(1, -1)
-            u_ref = u_ref.view(1, -1)
-            u = self.u(x, x_ref, u_ref)
-            return u.squeeze()
+            def unbatched_u(x, x_ref, u_ref):
+                assert len(x.shape) == 1
+                x = x.view(1, -1)
+                x_ref = x_ref.view(1, -1)
+                u_ref = u_ref.view(1, -1)
+                u = self.u(x, x_ref, u_ref)
+                return u.squeeze()
 
-        from functorch import vmap, jacfwd
-        K = vmap(jacfwd(unbatched_u, argnums=0))(x, x_ref, u_ref)
-        K = K.detach()
+            from functorch import vmap, jacfwd
+            K = vmap(jacfwd(unbatched_u, argnums=0))(x, x_ref, u_ref)
+            K = K.detach()
 
-        A = Jx
-        B = Ju
+            A = Jx
+            B = Ju
 
-        closed_loop_jacobian_est = A + B @ K
+            closed_loop_jacobian = A + B @ K
 
-        MABK = M.matmul(closed_loop_jacobian_est)
+        MABK = M.matmul(closed_loop_jacobian)
 
         # This is the simple loss (which Dawei describes as "hard") from eq(5)
         # in the neural contraction paper.
