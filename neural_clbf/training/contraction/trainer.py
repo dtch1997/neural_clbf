@@ -805,7 +805,7 @@ class Trainer(nn.Module):
         # also compute the gradient through u
         closed_loop_jacobian = self.jacobian(xdot.reshape(-1, self.n_state_dims, 1), x)
         with torch.no_grad():
-            Jx, Ju = self.dynamics_jacobian(self.dynamics, x, u)
+            Jx, Ju = self.dynamics_jacobian(self.dynamics, x, u, delta=1e-3)
         
         B, n, m = Ju.shape 
         K = torch.zeros(
@@ -825,7 +825,7 @@ class Trainer(nn.Module):
 
         closed_loop_jacobian_est = A + B @ K
 
-        MABK = M.matmul(closed_loop_jacobian)
+        MABK = M.matmul(closed_loop_jacobian_est)
 
         # This is the simple loss (which Dawei describes as "hard") from eq(5)
         # in the neural contraction paper.
