@@ -806,19 +806,17 @@ class Trainer(nn.Module):
         closed_loop_jacobian = self.jacobian(xdot.reshape(-1, self.n_state_dims, 1), x)
         with torch.no_grad():
             Jx, Ju = self.dynamics_jacobian(self.dynamics, x, u, delta=1e-3)
-        
-        B, n, m = Ju.shape 
-        K = torch.zeros(
-            (B, m, n), 
-            dtype=xdot.dtype, 
-            layout=xdot.layout, 
-            device=xdot.device
-        )
 
-        for b in range(B):
-            for i in range(m):
-                output = torch.autograd.grad(u[b,i], x, retain_graph=True)[0]
-                K[b, i] = output[b]
+        def unbatched_u(x, x_ref, u_ref):
+            assert len(x.shape) == 1
+            x = x.view(1, -1)
+            x_ref = x_ref.view(1, -1)
+            u_ref = u_ref.view(1, -1)
+            u = self.u(x, x_ref, u_ref)
+            return u.squeeze()
+
+        from functorch import vmap, jacfwd
+        K = vmap(jacfwd(unbatched_u, argnums=0))(x, x_ref, u_ref)
 
         A = Jx
         B = Ju
