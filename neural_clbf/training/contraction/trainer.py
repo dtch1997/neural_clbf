@@ -457,6 +457,55 @@ class Trainer(nn.Module):
         for i in range(m):
             J[:, i, :] = grad(f[:, i, 0].sum(), x, create_graph=True)[0].squeeze(-1)
         return J
+    
+    def dynamics_jacobian(self, dyn: DynamicsCallable, x: torch.Tensor, u: torch.Tensor, delta:float=1e-5) -> torch.Tensor:
+        """
+        Computes the jacobian of dynamics w.r.t x, u. 
+        Uses numerical estimate so dynamics does not need to be differentiable.
+
+        args:
+            dyn - dynamics function f(x, u) --> xdot
+            x - B x n x 1 function inputs. Assumed to be independent of each other
+            u - B x m x 1 function inputs. Assumed to be independent of each other
+
+        returns
+            Jx - B x n x n Jacobian of dyn w.r.t x
+            Ju - B x n x m Jacobian of dyn w.r.t. u
+        """
+        xdot = dyn(x, u)
+        B, n = x.shape[:2] 
+        _, m = u.shape[:2]
+        Jx = torch.zeros(
+            (B, n, n),
+            dtype=xdot.dtype, 
+            layout=xdot.layout, 
+            device=xdot.device
+        )
+        Ju = torch.zeros(
+            (B, n, m),
+            dtype=xdot.dtype, 
+            layout=xdot.layout, 
+            device=xdot.device
+        )
+
+        # TODO: There must be a way to vectorize this loop
+        for i in range(n):
+            delta_x = torch.zeros_like(x)
+            delta_x[:, i] = delta
+            x_perturb = x + delta_x
+            xdot_perturb = dyn(x_perturb, u)
+            delta_x = (xdot_perturb - xdot) / delta
+            Jx[:, :, i] = delta_x
+
+        for j in range(m):
+            delta_u = torch.zeros_like(u)
+            delta_u[:, j] = delta
+            u_perturb = u + delta_u
+            xdot_perturb = dyn(x, u_perturb)
+            delta_x = (xdot_perturb - xdot) / delta
+            Ju[:, :, j] = delta_x
+
+        return Jx, Ju
 
     def jacobian_matrix(self, M: torch.Tensor, x: torch.Tensor) -> torch.Tensor:
         """
@@ -755,6 +804,25 @@ class Trainer(nn.Module):
         # Get dynamics Jacobians. Only requires one call to grad, since this will
         # also compute the gradient through u
         closed_loop_jacobian = self.jacobian(xdot.reshape(-1, self.n_state_dims, 1), x)
+        with torch.no_grad():
+            Jx, Ju = self.dynamics_jacobian(self.dynamics, x, u)
+        
+        B, n, m = Ju.shape 
+        K = torch.zeros(
+            (B, m, n), 
+            dtype=xdot.dtype, 
+            layout=xdot.layout, 
+            device=xdot.device
+        )
+
+        for b in range(B):
+            for i in range(m):
+                K[b,i] = torch.autograd.grad(u[b,i], x[b])
+
+        A = Jx
+        B = Ju
+
+        closed_loop_jacobian_est = A + B @ K
 
         MABK = M.matmul(closed_loop_jacobian)
 
