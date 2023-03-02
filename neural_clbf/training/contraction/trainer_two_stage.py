@@ -283,11 +283,10 @@ class TwoStageTrainer(Trainer):
                     param_norm = p.grad.detach().data.norm(2)
                     total_norm += param_norm.item() ** 2
                 total_norm = total_norm ** 0.5
-                self.writer.add_scalar("M grad norm", total_norm, self.global_steps)
+                self.writer.add_scalar("M grad norm/pretrain", total_norm, self.global_steps)
 
                 # Track the overall number of gradient descent steps
-                # Disable during pre-training to compare policy learning
-                # self.global_steps += 1
+                self.global_steps += 1
 
                 # Clean up
                 x = x.detach()
@@ -295,14 +294,14 @@ class TwoStageTrainer(Trainer):
             # save progress
             training_losses.append(loss_accumulated / (N_train / self.batch_size))
             # Log the running loss
-            self.writer.add_scalar("Loss/train", training_losses[-1], self.global_steps)
+            self.writer.add_scalar("Loss/pretrain", training_losses[-1], self.global_steps)
             self.writer.add_scalar(
-                "PD Loss/train",
+                "PD Loss/pretrain",
                 pd_loss_accumulated / (N_train / self.batch_size),
                 self.global_steps,
             )
             self.writer.add_scalar(
-                "M Loss/train",
+                "M Loss/pretrain",
                 M_loss_accumulated / (N_train / self.batch_size),
                 self.global_steps,
             )
@@ -335,9 +334,11 @@ class TwoStageTrainer(Trainer):
 
             test_losses.append(loss_accumulated / (N_test / self.batch_size))
             # And log the running loss
-            self.writer.add_scalar("Loss/test", test_losses[-1], self.global_steps)
+            self.writer.add_scalar("Loss/pretrain_test", test_losses[-1], self.global_steps)
             self.writer.close()
 
+        # Reset global steps for training
+        self.global_steps = 0
 
         # Freeze learned metric if so configured
         self.A.requires_grad_(finetune_M)
@@ -349,7 +350,8 @@ class TwoStageTrainer(Trainer):
 
             loss_accumulated = 0.0
             pd_loss_accumulated = 0.0
-            M_loss_accumulated = 0.0
+            M_loss_policy_accumulated = 0.0
+            M_loss_intrinsic_accumulated = 0.0
             u_loss_accumulated = 0.0
             epoch_range = range(0, N_train, self.batch_size)
             if debug:
@@ -361,6 +363,7 @@ class TwoStageTrainer(Trainer):
                 batch_indices = permutation[i : i + self.batch_size]
                 # These samples will be [traj_length + expert_horizon_length, *]
                 x = self.x_training[batch_indices]
+                x_dot = self.x_dot_training[batch_indices]
                 x_ref = self.x_ref_training[batch_indices]
                 u_ref = self.u_ref_training[batch_indices]
                 u_expert = self.u_expert_training[batch_indices]
@@ -369,6 +372,7 @@ class TwoStageTrainer(Trainer):
                 self.optimizer.zero_grad()
 
                 # Compute loss and backpropagate
+                M_loss_intrinsic = self.pretrain_contraction_loss_M(x, x_dot)
                 losses = self.compute_losses(x, x_ref, u_ref, u_expert, epoch)
                 loss = torch.tensor(0.0)
                 for loss_element in losses.values():
@@ -376,13 +380,15 @@ class TwoStageTrainer(Trainer):
                 loss.backward()
 
                 loss_accumulated += loss.detach().item()
+                loss_accumulated += M_loss_intrinsic.detach().item()
 
                 if "conditioning" in losses:
                     pd_loss_accumulated += losses["conditioning"].detach().item()
                 if "M" in losses:
-                    M_loss_accumulated += losses["M"].detach().item()
+                    M_loss_policy_accumulated += losses["M"].detach().item()
                 if "u" in losses:
                     u_loss_accumulated += losses["u"].detach().item()
+                M_loss_intrinsic_accumulated += M_loss_intrinsic.detach().item()
 
                 # Clip gradients
                 max_norm = 1e2
@@ -404,7 +410,7 @@ class TwoStageTrainer(Trainer):
                     param_norm = p.grad.detach().data.norm(2)
                     total_norm += param_norm.item() ** 2
                 total_norm = total_norm ** 0.5
-                self.writer.add_scalar("M grad norm", total_norm, self.global_steps)
+                self.writer.add_scalar("M grad norm/train", total_norm, self.global_steps)
                 total_norm = 0.0
                 parameters = [
                     p
@@ -415,7 +421,7 @@ class TwoStageTrainer(Trainer):
                     param_norm = p.grad.detach().data.norm(2)
                     total_norm += param_norm.item() ** 2
                 total_norm = total_norm ** 0.5
-                self.writer.add_scalar("Pi grad norm", total_norm, self.global_steps)
+                self.writer.add_scalar("Pi grad norm/train", total_norm, self.global_steps)
 
                 # Track the overall number of gradient descent steps
                 self.global_steps += 1
@@ -433,8 +439,13 @@ class TwoStageTrainer(Trainer):
                 self.global_steps,
             )
             self.writer.add_scalar(
-                "M Loss/train",
-                M_loss_accumulated / (N_train / self.batch_size),
+                "M Loss/train_intrinsic",
+                M_loss_intrinsic_accumulated / (N_train / self.batch_size),
+                self.global_steps,
+            )
+            self.writer.add_scalar(
+                "M Loss/train_policy",
+                M_loss_policy_accumulated / (N_train / self.batch_size),
                 self.global_steps,
             )
             self.writer.add_scalar(
