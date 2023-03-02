@@ -128,8 +128,8 @@ class TwoStageTrainer(Trainer):
         print(" Done!")
 
         # Reshape
-        x = x[:, : tstep + 1, :].reshape(-1, self.n_state_dims)
         x_next = x[:, 1: tstep + 2, :].reshape(-1, self.n_state_dims)
+        x = x[:, : tstep + 1, :].reshape(-1, self.n_state_dims)
         x_ref = x_ref[:, : tstep + 1, :].reshape(-1, self.n_state_dims)
         u_ref = u_ref[:, : tstep + 1, :].reshape(-1, self.n_control_dims)
         u_expert = u_expert[:, : tstep + 1, :].reshape(-1, self.n_control_dims)
@@ -316,7 +316,7 @@ class TwoStageTrainer(Trainer):
                 epoch_range = range(0, N_test, self.batch_size)
                 if debug:
                     epoch_range = tqdm(epoch_range)
-                    epoch_range.set_description(f"Epoch {epoch} Test")  # type: ignore
+                    epoch_range.set_description(f"Epoch {pretrain_epoch} Test")  # type: ignore
                 for i in epoch_range:
                     # Get samples from the state space
                     indices = permutation[i : i + self.batch_size]
