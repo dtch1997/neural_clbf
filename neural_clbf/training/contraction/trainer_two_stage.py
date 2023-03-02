@@ -53,7 +53,6 @@ class TwoStageTrainer(Trainer):
 
         # Create some places to store the simulation results
         x = torch.zeros((self.n_trajs, traj_length, self.n_state_dims))
-        x_next = torch.zeros((self.n_trajs, traj_length, self.n_state_dims))
         x_dot = torch.zeros((self.n_trajs, traj_length, self.n_state_dims))
         x[:, 0, :] = x_init
         u_expert = torch.zeros((self.n_trajs, traj_length, self.n_control_dims))
@@ -108,14 +107,13 @@ class TwoStageTrainer(Trainer):
 
                 # Update state
                 for i in range(dynamics_updates_per_control_update):
-                    x_dot = self.dynamics(
+                    dx = self.dynamics(
                         x_current,
                         u_current.reshape(-1, self.n_control_dims),
                     )
-                    x_current += self.sim_dt * x_dot
+                    x_current += self.sim_dt * dx
                     if i == 0:
-                        x_dot[traj_idx, tstep, :] = x_dot
-                        x_next[traj_idx, tstep, :] = x_current
+                        x_dot[traj_idx, tstep, :] = dx
                 x[traj_idx, tstep + 1, :] = x_current
 
             # plt.plot(x[traj_idx, :n_steps, 0], x[traj_idx, :n_steps, 1], "-")
@@ -133,8 +131,7 @@ class TwoStageTrainer(Trainer):
         print(" Done!")
 
         # Reshape
-        x_next = x_next[:, tstep + 1, :].reshape(-1, self.n_state_dims)
-        x_dot = x_dot[:, tstep + 1, :].reshape(-1, self.n_state_dims)
+        x_dot = x_dot[:, : tstep + 1, :].reshape(-1, self.n_state_dims)
         x = x[:, : tstep + 1, :].reshape(-1, self.n_state_dims)
         x_ref = x_ref[:, : tstep + 1, :].reshape(-1, self.n_state_dims)
         u_ref = u_ref[:, : tstep + 1, :].reshape(-1, self.n_control_dims)
@@ -155,9 +152,6 @@ class TwoStageTrainer(Trainer):
         self.x_training = x[training_indices]
         self.x_validation = x[validation_indices]
 
-        self.x_next_training = x_next[training_indices]
-        self.x_next_validation = x_next[validation_indices]
-
         self.x_dot_training = x_dot[training_indices]
         self.x_dot_validation = x_dot[validation_indices]
 
@@ -167,7 +161,7 @@ class TwoStageTrainer(Trainer):
     def compute_pretrain_losses(
         self,
         x: torch.Tensor,
-        x_next: torch.Tensor,
+        x_dot: torch.Tensor,
     ) -> Dict[str, torch.Tensor]:
         """Compute the pre-training loss
 
@@ -177,7 +171,7 @@ class TwoStageTrainer(Trainer):
         """
         losses = {}
         losses["conditioning"] = self.contraction_loss_conditioning(x, None, None)
-        losses["M"] = self.pretrain_contraction_loss_M(x, x_next)
+        losses["M"] = self.pretrain_contraction_loss_M(x, x_dot)
         return losses
     
     @torch.enable_grad()
@@ -332,10 +326,10 @@ class TwoStageTrainer(Trainer):
                     # Get samples from the state space
                     indices = permutation[i : i + self.batch_size]
                     x = self.x_validation[indices]
-                    x_next = self.x_next_validation[indices]
+                    x_dot = self.x_dot_validation[indices]
 
                     # Compute loss and backpropagate
-                    losses = self.compute_pretrain_losses(x, x_next)
+                    losses = self.compute_pretrain_losses(x, x_dot)
                     for loss_element in losses.values():
                         loss_accumulated += loss_element.detach().item()
 
