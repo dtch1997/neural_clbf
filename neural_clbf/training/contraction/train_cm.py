@@ -213,7 +213,7 @@ def test_add_data_turtlebot():
 
 # Define a function to run training and save the results
 # (don't run when we run pytest, only when we run this file)
-def do_training_turtlebot():
+def do_training_turtlebot(two_stage=False):
     hyperparameters = {
         "n_state_dims": 3,
         "n_control_dims": 2,
@@ -253,24 +253,44 @@ def do_training_turtlebot():
             x, x_ref, u_ref, hyperparameters["controller_dt"], control_bounds
         )
 
-    my_trainer = Trainer(
-        (
-            "clone_M_cond_2x32_policy_2x32_metric_1e4_noisy_examples_100x0.1"
-            "_no_L_lr1e-3_1s_horizon"
-        ),
-        hyperparameters,
-        f_turtlebot,
-        AB_turtlebot,
-        expert,
-        expert_horizon,
-        state_space,
-        error_bounds,
-        control_bounds,
-        0.3,  # validation_split
-    )
-
-    n_steps = 2502
-    return my_trainer.run_training(n_steps, debug=True, sim_every_n_steps=100)
+    if two_stage:
+        from trainer_two_stage import TwoStageTrainer
+        my_trainer = TwoStageTrainer(
+            (
+                "clone_M_cond_2x32_policy_2x32_metric_1e4_noisy_examples_100x0.1"
+                "_no_L_lr1e-3_1s_horizon"
+            ),
+            hyperparameters,
+            f_turtlebot,
+            AB_turtlebot,
+            expert,
+            expert_horizon,
+            state_space,
+            error_bounds,
+            control_bounds,
+            0.3,  # validation_split
+        )
+        n_pretrain_steps = 502
+        n_steps = 502
+        return my_trainer.run_training(n_steps, debug=True, sim_every_n_steps=100)
+    else:
+        my_trainer = Trainer(
+            (
+                "clone_M_cond_2x32_policy_2x32_metric_1e4_noisy_examples_100x0.1"
+                "_no_L_lr1e-3_1s_horizon"
+            ),
+            hyperparameters,
+            f_turtlebot,
+            AB_turtlebot,
+            expert,
+            expert_horizon,
+            state_space,
+            error_bounds,
+            control_bounds,
+            0.3,  # validation_split
+        )
+        n_steps = 502
+        return my_trainer.run_training(n_steps, debug=True, sim_every_n_steps=100)
 
 
 
@@ -279,6 +299,7 @@ if __name__ == "__main__":
     import argparse 
     parser = argparse.ArgumentParser()
     parser.add_argument('-t', '--track', action='store_true', default=False)
+    parser.add_argument('-p', '--two-stage', action='store_true', default=False)
     args = parser.parse_args()
 
     if args.track:
@@ -296,7 +317,7 @@ if __name__ == "__main__":
         policy_network_list,
         training_losses,
         test_losses,
-    ) = do_training_turtlebot()
+    ) = do_training_turtlebot(two_stage = args.two_stage)
 
     import pickle 
     def save(obj, fn):
