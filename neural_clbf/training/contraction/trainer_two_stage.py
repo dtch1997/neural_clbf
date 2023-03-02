@@ -292,7 +292,8 @@ class TwoStageTrainer(Trainer):
                 self.writer.add_scalar("M grad norm", total_norm, self.global_steps)
 
                 # Track the overall number of gradient descent steps
-                self.global_steps += 1
+                # Disable during pre-training to compare policy learning
+                # self.global_steps += 1
 
                 # Clean up
                 x = x.detach()
