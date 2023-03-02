@@ -32,6 +32,39 @@ class TwoStageTrainer(Trainer):
     Learns the metric first and then the control policy.
     """
 
+    def compute_pretrain_losses(
+        self,
+        x: torch.Tensor,
+        x_prev: torch.Tensor,
+    ) -> Dict[str, torch.Tensor]:
+        """Compute the pre-training loss
+
+        args:
+            x - (batch_size + self.expert_horizon // self.controller_dt) x
+                self.n_state_dims tensor of state
+        """
+        losses = {}
+        losses["conditioning"] = self.contraction_loss_conditioning(x, None, None)
+        losses["M"] = self.pretrain_contraction_loss_M(x, x_prev)
+        return losses
+    
+    @torch.enable_grad()
+    def pretrain_contraction_loss_M(
+        self, 
+        x: torch.Tensor,
+        x_prev: torch.Tensor,
+    ) -> torch.Tensor:
+        
+        x = x.requires_grad_()
+        M = self.M(x)
+        xdot = (x - x_prev) / self.sim_dt 
+        Mdot = self.weighted_gradients(M, xdot, x, detach=False)
+        contraction_cond = Mdot + 2 * self.lambda_M * M
+
+        loss = torch.tensor(0.0)
+        loss += self.positive_definite_loss(-contraction_cond, eps=0.1)
+        return loss
+
     def run_training(
         self,
         n_pretrain_steps: int,
@@ -75,7 +108,7 @@ class TwoStageTrainer(Trainer):
             epoch_range = range(0, N_train, self.batch_size)
             if debug:
                 epoch_range = tqdm(epoch_range)
-                epoch_range.set_description(f"Epoch {epoch} Training")  # type: ignore
+                epoch_range.set_description(f"Epoch {pretrain_epoch} Training")  # type: ignore
 
             for i in epoch_range:
                 # Get samples from the state space
