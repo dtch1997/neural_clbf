@@ -202,6 +202,7 @@ class TwoStageTrainer(Trainer):
         n_pretrain_steps: int,
         n_steps: int,
         debug: bool = False,
+        finetune_M: bool = False,
         sim_every_n_steps: int = 1,
     ):
         """
@@ -342,6 +343,9 @@ class TwoStageTrainer(Trainer):
             self.writer.add_scalar("Loss/test", test_losses[-1], self.global_steps)
             self.writer.close()
 
+
+        # Freeze learned metric if so configured
+        self.A.requires_grad_(finetune_M)
 
         epochs = range(n_steps)
         for epoch in epochs:

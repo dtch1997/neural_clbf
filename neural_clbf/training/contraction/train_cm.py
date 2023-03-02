@@ -213,7 +213,7 @@ def test_add_data_turtlebot():
 
 # Define a function to run training and save the results
 # (don't run when we run pytest, only when we run this file)
-def do_training_turtlebot(two_stage=False):
+def do_training_turtlebot(args):
     hyperparameters = {
         "n_state_dims": 3,
         "n_control_dims": 2,
@@ -223,8 +223,8 @@ def do_training_turtlebot(two_stage=False):
         "policy_hidden_layers": 2,
         "policy_hidden_units": 32,
         "learning_rate": 1e-3,
-        "batch_size": 100,
-        "n_trajs": 100,
+        "batch_size": args.batch_size,
+        "n_trajs": args.num_trajectories,
         "controller_dt": 0.1,
         "sim_dt": 1e-2,
         "demonstration_noise": 0.3,
@@ -253,7 +253,7 @@ def do_training_turtlebot(two_stage=False):
             x, x_ref, u_ref, hyperparameters["controller_dt"], control_bounds
         )
 
-    if two_stage:
+    if args.two_stage:
         from trainer_two_stage import TwoStageTrainer
         my_trainer = TwoStageTrainer(
             (
@@ -272,7 +272,11 @@ def do_training_turtlebot(two_stage=False):
         )
         n_pretrain_steps = 502
         n_steps = 502
-        return my_trainer.run_training(n_pretrain_steps, n_steps, debug=True, sim_every_n_steps=100)
+        return my_trainer.run_training(
+            n_pretrain_steps, n_steps, 
+            debug=True, sim_every_n_steps=100,
+            finetune_M = args.finetune_M
+        )
     else:
         my_trainer = Trainer(
             (
@@ -300,6 +304,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('-t', '--track', action='store_true', default=False)
     parser.add_argument('-p', '--two-stage', action='store_true', default=False)
+    parser.add_argument('-f', '--finetune-M', action='store_true', default=False)
+    parser.add_argument('-n', '--num-trajectories', type=int, default=100)
+    parser.add_argument('-b', '--batch-size', type=int, default=100)
     args = parser.parse_args()
 
     if args.track:
@@ -317,7 +324,7 @@ if __name__ == "__main__":
         policy_network_list,
         training_losses,
         test_losses,
-    ) = do_training_turtlebot(two_stage = args.two_stage)
+    ) = do_training_turtlebot(args)
 
     import pickle 
     def save(obj, fn):
