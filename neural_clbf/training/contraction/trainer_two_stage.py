@@ -158,7 +158,7 @@ class TwoStageTrainer(Trainer):
     def compute_pretrain_losses(
         self,
         x: torch.Tensor,
-        x_prev: torch.Tensor,
+        x_next: torch.Tensor,
     ) -> Dict[str, torch.Tensor]:
         """Compute the pre-training loss
 
@@ -168,19 +168,19 @@ class TwoStageTrainer(Trainer):
         """
         losses = {}
         losses["conditioning"] = self.contraction_loss_conditioning(x, None, None)
-        losses["M"] = self.pretrain_contraction_loss_M(x, x_prev)
+        losses["M"] = self.pretrain_contraction_loss_M(x, x_next)
         return losses
     
     @torch.enable_grad()
     def pretrain_contraction_loss_M(
         self, 
         x: torch.Tensor,
-        x_prev: torch.Tensor,
+        x_next: torch.Tensor,
     ) -> torch.Tensor:
         
         x = x.requires_grad_()
         M = self.M(x)
-        xdot = (x - x_prev) / self.sim_dt 
+        xdot = (x_next - x) / self.sim_dt 
         Mdot = self.weighted_gradients(M, xdot, x, detach=False)
         contraction_cond = Mdot + 2 * self.lambda_M * M
 
@@ -238,18 +238,14 @@ class TwoStageTrainer(Trainer):
                 batch_indices = permutation[i : i + self.batch_size]
                 # These samples will be [traj_length + expert_horizon_length, *]
                 x = self.x_training[batch_indices]
-                x_ref = self.x_ref_training[batch_indices]
-                u_ref = self.u_ref_training[batch_indices]
-                u_expert = self.u_expert_training[batch_indices]
+                x_next = self.x_next_training[batch_indices]
 
                 # Zero the parameter gradients
                 self.optimizer.zero_grad()
 
                 # Compute contraction metric loss and backpropagate
                 losses = {}
-                losses["conditioning"] = self.contraction_loss_conditioning(x, x_ref, u_ref)
-                # TODO: replace contraction_loss_M with a modified version that estimates xdot instead of calculating
-                losses["M"] = self.contraction_loss_M(x, x_ref, u_ref)
+                losses = self.compute_pretrain_losses(x, x_next)
                 
                 loss = torch.tensor(0.0)
                 for loss_element in losses.values():
@@ -262,8 +258,6 @@ class TwoStageTrainer(Trainer):
                     pd_loss_accumulated += losses["conditioning"].detach().item()
                 if "M" in losses:
                     M_loss_accumulated += losses["M"].detach().item()
-                if "u" in losses:
-                    u_loss_accumulated += losses["u"].detach().item()
 
                 # Clip gradients
                 max_norm = 1e2
@@ -314,6 +308,31 @@ class TwoStageTrainer(Trainer):
 
             # TODO: Is there a way to visualize the regions 
             # where the contraction metric is valid / invalid respectively?
+
+            # Reset accumulated loss and get loss for the test set
+            loss_accumulated = 0.0
+            permutation = torch.randperm(N_test)
+            with torch.no_grad():
+                epoch_range = range(0, N_test, self.batch_size)
+                if debug:
+                    epoch_range = tqdm(epoch_range)
+                    epoch_range.set_description(f"Epoch {epoch} Test")  # type: ignore
+                for i in epoch_range:
+                    # Get samples from the state space
+                    indices = permutation[i : i + self.batch_size]
+                    x = self.x_validation[indices]
+                    x_next = self.x_next_validation[indices]
+
+                    # Compute loss and backpropagate
+                    losses = self.compute_pretrain_losses(x, x_next)
+                    for loss_element in losses.values():
+                        loss_accumulated += loss_element.detach().item()
+
+            test_losses.append(loss_accumulated / (N_test / self.batch_size))
+            # And log the running loss
+            self.writer.add_scalar("Loss/test", test_losses[-1], self.global_steps)
+            self.writer.close()
+
 
         epochs = range(n_steps)
         for epoch in epochs:
