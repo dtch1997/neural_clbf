@@ -32,6 +32,125 @@ class TwoStageTrainer(Trainer):
     Learns the metric first and then the control policy.
     """
 
+    def initialize_data(self):
+        # Generate data using self.n_trajs trajectories of length batch_size
+        T = self.batch_size * self.controller_dt + self.expert_horizon
+        print("Constructing initial dataset...")
+        # get these trajectories from a larger range of errors than we expect in testing
+        error_bounds_demonstrations = [1.5 * bound for bound in self.error_bounds]
+        x_init, x_ref, u_ref = generate_random_reference(
+            self.n_trajs,
+            T,
+            self.controller_dt,
+            self.n_state_dims,
+            self.n_control_dims,
+            self.state_space,
+            self.control_bounds,
+            error_bounds_demonstrations,
+            self.dynamics,
+        )
+        traj_length = x_ref.shape[1]
+
+        # Create some places to store the simulation results
+        x = torch.zeros((self.n_trajs, traj_length, self.n_state_dims))
+        x[:, 0, :] = x_init
+        u_expert = torch.zeros((self.n_trajs, traj_length, self.n_control_dims))
+        u_current = torch.zeros((self.n_control_dims,))
+
+        # The expert policy requires a sliding window over the trajectory, so we need
+        # to iterate through that trajectory.
+        # Make sure we don't overrun the end of the reference while planning
+        n_steps = traj_length - int(self.expert_horizon / self.controller_dt)
+        dynamics_updates_per_control_update = int(self.controller_dt / self.sim_dt)
+        for traj_idx in tqdm(range(self.n_trajs)):
+            traj_range = range(n_steps - 1)
+            for tstep in traj_range:
+                # Get the current states and references
+                x_current = x[traj_idx, tstep].reshape(-1, self.n_state_dims).clone()
+
+                # Pick out sliding window into references for use with the expert
+                x_ref_expert = (
+                    x_ref[
+                        traj_idx,
+                        tstep : tstep + int(self.expert_horizon // self.controller_dt),
+                    ]
+                    .cpu()
+                    .detach()
+                    .numpy()
+                )
+                u_ref_expert = (
+                    u_ref[
+                        traj_idx,
+                        tstep : tstep + int(self.expert_horizon // self.controller_dt),
+                    ]
+                    .cpu()
+                    .detach()
+                    .numpy()
+                )
+
+                # Run the expert
+                u_current = torch.tensor(
+                    self.expert_controller(
+                        x_current.detach().cpu().numpy().squeeze(),
+                        x_ref_expert,
+                        u_ref_expert,
+                    )
+                )
+
+                u_expert[traj_idx, tstep, :] = u_current
+
+                # Add a bit of noise to widen the distribution of states
+                u_current += torch.normal(
+                    0, self.demonstration_noise * torch.tensor(self.control_bounds)
+                )
+
+                # Update state
+                for _ in range(dynamics_updates_per_control_update):
+                    x_dot = self.dynamics(
+                        x_current,
+                        u_current.reshape(-1, self.n_control_dims),
+                    )
+                    x_current += self.sim_dt * x_dot
+                x[traj_idx, tstep + 1, :] = x_current
+
+            # plt.plot(x[traj_idx, :n_steps, 0], x[traj_idx, :n_steps, 1], "-")
+            # plt.plot(x_ref[traj_idx, :n_steps, 0], x_ref[traj_idx, :n_steps, 1], ":")
+            # plt.plot(x[traj_idx, 0, 0], x[traj_idx, 0, 1], "ko")
+            # plt.plot(x_ref[traj_idx, 0, 0], x_ref[traj_idx, 0, 1], "ko")
+            # plt.show()
+
+            # plt.plot(u_expert[traj_idx, :, 0], "r:")
+            # plt.plot(u_expert[traj_idx, :, 1], "r--")
+            # plt.plot(u_ref[traj_idx, :, 0], "k:")
+            # plt.plot(u_ref[traj_idx, :, 1], "k--")
+            # plt.show()
+
+        print(" Done!")
+
+        # Reshape
+        x = x[:, : tstep + 1, :].reshape(-1, self.n_state_dims)
+        x_ref = x_ref[:, : tstep + 1, :].reshape(-1, self.n_state_dims)
+        u_ref = u_ref[:, : tstep + 1, :].reshape(-1, self.n_control_dims)
+        u_expert = u_expert[:, : tstep + 1, :].reshape(-1, self.n_control_dims)
+
+        # Split data into training and validation and save it
+        random_indices = torch.randperm(x.shape[0])
+        val_points = int(x.shape[0] * self.validation_split)
+        validation_indices = random_indices[:val_points]
+        training_indices = random_indices[val_points:]
+
+        self.x_ref_training = x_ref[training_indices]
+        self.x_ref_validation = x_ref[validation_indices]
+
+        self.u_ref_training = u_ref[training_indices]
+        self.u_ref_validation = u_ref[validation_indices]
+
+        self.x_training = x[training_indices]
+        self.x_validation = x[validation_indices]
+
+        self.u_expert_training = u_expert[training_indices]
+        self.u_expert_validation = u_expert[validation_indices]
+
     def compute_pretrain_losses(
         self,
         x: torch.Tensor,
