@@ -129,6 +129,7 @@ class TwoStageTrainer(Trainer):
 
         # Reshape
         x = x[:, : tstep + 1, :].reshape(-1, self.n_state_dims)
+        x_next = x[:, 1: tstep + 2, :].reshape(-1, self.n_state_dims)
         x_ref = x_ref[:, : tstep + 1, :].reshape(-1, self.n_state_dims)
         u_ref = u_ref[:, : tstep + 1, :].reshape(-1, self.n_control_dims)
         u_expert = u_expert[:, : tstep + 1, :].reshape(-1, self.n_control_dims)
@@ -147,6 +148,9 @@ class TwoStageTrainer(Trainer):
 
         self.x_training = x[training_indices]
         self.x_validation = x[validation_indices]
+
+        self.x_next_training = x_next[training_indices]
+        self.x_next_validation = x_next[validation_indices]
 
         self.u_expert_training = u_expert[training_indices]
         self.u_expert_validation = u_expert[validation_indices]
