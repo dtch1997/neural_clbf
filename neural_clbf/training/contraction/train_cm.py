@@ -272,7 +272,7 @@ def do_training_turtlebot(two_stage=False):
         )
         n_pretrain_steps = 502
         n_steps = 502
-        return my_trainer.run_training(n_steps, debug=True, sim_every_n_steps=100)
+        return my_trainer.run_training(n_pretrain_steps, n_steps, debug=True, sim_every_n_steps=100)
     else:
         my_trainer = Trainer(
             (
