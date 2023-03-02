@@ -275,14 +275,21 @@ def do_training_turtlebot():
 
 
 if __name__ == "__main__":
-    import wandb
-    run = wandb.init(
-        project='SkillVerification',
-        group='NeuralCM',
-        entity='dtch1997',
-        sync_tensorboard=True,
-        name='turtlebot',
-    )
+
+    import argparse 
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-t', '--track', action='store_true', default=False)
+    args = parser.parse_args()
+
+    if args.track:
+        import wandb
+        run = wandb.init(
+            project='SkillVerification',
+            group='NeuralCM',
+            entity='dtch1997',
+            sync_tensorboard=True,
+            name='turtlebot',
+        )
     
     (
         contraction_network_list,
@@ -295,7 +302,8 @@ if __name__ == "__main__":
     def save(obj, fn):
         with open(fn, 'wb') as file:
             pickle.dump(obj, file)
-            wandb.save(fn)
+            if args.track:
+                wandb.save(fn)
 
     save(policy_network_list, 'policy_network.pkl')
     save(contraction_network_list, 'contraction_network.pkl')
