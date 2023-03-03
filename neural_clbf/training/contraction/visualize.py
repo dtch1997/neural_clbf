@@ -24,7 +24,7 @@ def eval_contraction_metric(
     metric_derivative: MetricDerivCallable,
     control_bounds: Optional[List[float]] = None,
     steps: int = 10,
-) -> bool:
+):
     """ 
     Check whether a contraction metric holds within a given region
     for a fixed reference state, reference control, and tracking controller.
@@ -48,6 +48,5 @@ def eval_contraction_metric(
     u_ref_batch = u_ref.unsqueeze(0).repeat((n_batch, 1))
     dMdt = metric_derivative(x_batch, x_ref_batch, u_ref_batch) # (n_batch, 1)
 
-    metric_is_valid = torch.all(dMdt < 0)
-    return metric_is_valid
+    return x_batch, dMdt
 
