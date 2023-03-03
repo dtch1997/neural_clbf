@@ -305,8 +305,8 @@ if __name__ == "__main__":
     parser.add_argument('-f', '--finetune-M', action='store_true', default=False)
     parser.add_argument('-n', '--n-trajectories', type=int, default=100)
     parser.add_argument('-b', '--batch-size', type=int, default=100)
-    parser.add_argument('-s', '--n-train-steps', type=int, default=502)
-    parser.add_argument('-p', '--n-pretrain-steps', type=int, default=502)
+    parser.add_argument('--n-train-steps', type=int, default=502)
+    parser.add_argument('--n-pretrain-steps', type=int, default=502)
     args = parser.parse_args()
 
     if args.track:
