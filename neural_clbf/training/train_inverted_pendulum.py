@@ -112,16 +112,26 @@ def main(args):
         disable_gurobi=True,
     )
 
+    if args.track:
+        import wandb
+        run = wandb.init(
+            project='SkillVerification',
+            group='NeuralCLBF',
+            entity='dtch1997',
+            sync_tensorboard=True,
+            name='inverted_pendulum',
+        )
+    
     # Initialize the logger and trainer
-    tb_logger = pl_loggers.TensorBoardLogger(
+    logger = pl_loggers.TensorBoardLogger(
         "logs/inverted_pendulum",
         name=f"commit_{current_git_hash()}",
     )
     trainer = pl.Trainer.from_argparse_args(
         args,
-        logger=tb_logger,
+        logger=logger,
         reload_dataloaders_every_epoch=True,
-        max_epochs=51,
+        max_epochs=args.n_epochs,
     )
 
     # Train
@@ -132,6 +142,8 @@ def main(args):
 if __name__ == "__main__":
     parser = ArgumentParser()
     parser = pl.Trainer.add_argparse_args(parser)
+    parser.add_argument('-t', '--track', action='store_true', default=False)
+    parser.add_argument('--n-epochs', type=int, default=51)
     args = parser.parse_args()
 
     main(args)
