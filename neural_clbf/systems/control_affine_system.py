@@ -357,6 +357,7 @@ class ControlAffineSystem(ABC):
         """
         return self.sample_with_mask(num_samples, self.boundary_mask, max_tries)
 
+    @torch.no_grad()
     def control_affine_dynamics(
         self, x: torch.Tensor, params: Optional[Scenario] = None
     ) -> Tuple[torch.Tensor, torch.Tensor]:
