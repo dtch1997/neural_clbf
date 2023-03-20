@@ -55,6 +55,7 @@ class NeuralCLBFController(pl.LightningModule, CLFController):
         add_nominal: bool = False,
         normalize_V_nominal: bool = False,
         disable_gurobi: bool = False,
+        save_hyperparams: bool = True,
     ):
         """Initialize the controller.
 
@@ -94,7 +95,9 @@ class NeuralCLBFController(pl.LightningModule, CLFController):
             controller_period=controller_period,
             disable_gurobi=disable_gurobi,
         )
-        self.save_hyperparameters()
+        # Note: Saving hyperparameters is incompatible with IsaacGym-derived dynamics function
+        if save_hyperparams:
+            self.save_hyperparameters()
 
         # Save the provided model
         # self.dynamics_model = dynamics_model
