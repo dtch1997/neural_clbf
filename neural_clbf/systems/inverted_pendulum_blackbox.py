@@ -44,6 +44,7 @@ class InvertedPendulumBlackbox(BlackboxControlAffineSystem):
         dt: float = 0.01,
         controller_dt: Optional[float] = None,
         scenarios: Optional[ScenarioList] = None,
+        euler_delta: Optional[float] = 1e-5,
     ):
         """
         Initialize the inverted pendulum.
@@ -56,8 +57,8 @@ class InvertedPendulumBlackbox(BlackboxControlAffineSystem):
         raises:
             ValueError if nominal_params are not valid for this system
         """
-        super().__init__(
-            nominal_params, dt=dt, controller_dt=controller_dt, scenarios=scenarios
+        super(InvertedPendulumBlackbox, self).__init__(
+            nominal_params, dt=dt, controller_dt=controller_dt, scenarios=scenarios, euler_delta = euler_delta
         )
 
     def validate_params(self, params: Scenario) -> bool:

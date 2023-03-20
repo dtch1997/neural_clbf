@@ -21,9 +21,6 @@ from neural_clbf.training.utils import current_git_hash
 
 torch.multiprocessing.set_sharing_strategy("file_system")
 
-batch_size = 64
-controller_period = 0.05
-
 start_x = torch.tensor(
     [
         [0.5, 0.5],
@@ -32,8 +29,13 @@ start_x = torch.tensor(
         [-0.2, -1.0],
     ]
 )
-simulation_dt = 0.01
 
+def add_argparse_args(parser: ArgumentParser):
+    parser.add_argument('--euler_delta', type=float, default=0.01, help='Euler delta for numerical differentiation')
+    parser.add_argument('--simulation-dt', type=float, default=0.01, help='Simulation dt')
+    parser.add_argument('--controller-period', type=float, default=0.05, help='Controller period')
+    parser.add_argument('--batch-size', type=int, default=64, help='Batch size')
+    return parser
 
 def main(args):
     # Define the scenarios
@@ -48,9 +50,10 @@ def main(args):
     # Define the dynamics model
     dynamics_model = InvertedPendulumBlackbox(
         nominal_params,
-        dt=simulation_dt,
-        controller_dt=controller_period,
+        dt=args.simulation_dt,
+        controller_dt=args.controller_period,
         scenarios=scenarios,
+        euler_delta = args.euler_delta
     )
 
     # Initialize the DataModule
@@ -66,7 +69,7 @@ def main(args):
         fixed_samples=10000,
         max_points=100000,
         val_split=0.1,
-        batch_size=64,
+        batch_size=args.batch_size,
         # quotas={"safe": 0.2, "unsafe": 0.2, "goal": 0.4},
     )
 
@@ -104,7 +107,7 @@ def main(args):
         clbf_hidden_size=64,
         clf_lambda=1.0,
         safe_level=1.0,
-        controller_period=controller_period,
+        controller_period=args.controller_period,
         clf_relaxation_penalty=1e2,
         num_init_epochs=5,
         epochs_per_episode=100,
@@ -144,6 +147,7 @@ if __name__ == "__main__":
     parser = pl.Trainer.add_argparse_args(parser)
     parser.add_argument('-t', '--track', action='store_true', default=False)
     parser.add_argument('--n-epochs', type=int, default=51)
+    parser = add_argparse_args(parser)
     args = parser.parse_args()
 
     main(args)
