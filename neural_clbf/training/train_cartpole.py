@@ -111,6 +111,16 @@ def main(args):
         barrier=args.barrier,
     )
     
+    if args.track:
+        import wandb
+        run = wandb.init(
+            project='NeuralCLBF',
+            group='CartpoleCLBF',
+            entity='dtch1997',
+            sync_tensorboard=True,
+            name='cartpole',
+        )
+
     # Initialize the logger and trainer
     logger = pl_loggers.TensorBoardLogger(
         "logs/cartpole",
