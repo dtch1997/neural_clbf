@@ -273,9 +273,13 @@ class RolloutStateSpaceExperiment(Experiment):
         num_traces = len(results_df["Simulation"].unique())
         for plot_idx, sim_index in enumerate(results_df["Simulation"].unique()):
             sim_mask = results_df["Simulation"] == sim_index
+            x = results_df[sim_mask][self.plot_x_label].to_numpy()
+            y = results_df[sim_mask][self.plot_y_label].to_numpy()
+            rollout_ax.scatter(x[0], y[0], color='black')
+            rollout_ax.scatter(x[-1], y[-1], color='black', alpha=0.1)
             rollout_ax.plot(
-                results_df[sim_mask][self.plot_x_label].to_numpy(),
-                results_df[sim_mask][self.plot_y_label].to_numpy(),
+                x,
+                y,
                 linestyle="-",
                 # marker="+",
                 markersize=5,
