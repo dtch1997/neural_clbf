@@ -274,7 +274,7 @@ class CLFContourExperiment(Experiment):
         ax.set_xlabel(self.x_axis_label)
         ax.set_ylabel(self.y_axis_label)
 
-        fig_handle = ("V Contour", fig)
+        fig_handle = (f"V Contour::{self.name}", fig)
 
         if display_plots:
             plt.show()

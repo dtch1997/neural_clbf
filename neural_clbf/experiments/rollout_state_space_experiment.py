@@ -358,7 +358,7 @@ class RolloutStateSpaceExperiment(Experiment):
             # Plot a reference line at V = 0
             V_ax.plot([0, results_df.t.max()], [0, 0], color="k")
 
-        fig_handle = ("Rollout (state space)", fig)
+        fig_handle = (f"Rollout::{self.name}", fig)
 
         if display_plots:
             plt.show()

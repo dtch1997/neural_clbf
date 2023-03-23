@@ -61,13 +61,22 @@ def main(args):
     # TODO: Define the experiment suite
     # V_contour_experiment, rollout_experiment
     V_contour_thetas_experiment = CLFContourExperiment(
-        "V_Contour_thetas",
+        "theta",
         domain=[(-1.5, 1.5), (-1.5, 1.5)],
         n_grid=25,
         x_axis_index=Cartpole.POLE_ANGLE,
         y_axis_index=Cartpole.POLE_ANGVEL,
         x_axis_label="$\\theta$",
         y_axis_label="$\\dot{\\theta}$",
+    )
+    V_contour_xs_experiment = CLFContourExperiment(
+        "x",
+        domain=[(-1.5, 1.5), (-1.5, 1.5)],
+        n_grid=25,
+        x_axis_index=Cartpole.CART_POS,
+        y_axis_index=Cartpole.CART_VEL,
+        x_axis_label="$x$",
+        y_axis_label="$\\dot{x}$",
     )
     start_x = torch.Tensor(
         [
@@ -77,12 +86,23 @@ def main(args):
             [-0.2, -1.0, -0.2, -1.0],
         ]
     )
+    rollout_xs_experiment = RolloutStateSpaceExperiment(
+        "Rollout_x",
+        start_x,
+        Cartpole.CART_POS,
+        "$x$",
+        Cartpole.CART_VEL,
+        "$\\dot{x}$",
+        scenarios=scenarios,
+        n_sims_per_start=1,
+        t_sim=5.0,
+    )
     rollout_thetas_experiment = RolloutStateSpaceExperiment(
         "Rollout_thetas",
         start_x,
-        Cartpole.CART_POS,
+        Cartpole.POLE_ANGLE,
         "$\\theta$",
-        Cartpole.CART_VEL,
+        Cartpole.POLE_ANGVEL,
         "$\\dot{\\theta}$",
         scenarios=scenarios,
         n_sims_per_start=1,
@@ -90,7 +110,9 @@ def main(args):
     )
     experiment_suite = ExperimentSuite([
         V_contour_thetas_experiment,
+        V_contour_xs_experiment,
         rollout_thetas_experiment,
+        rollout_xs_experiment
     ])
 
     # Initialize the controller
