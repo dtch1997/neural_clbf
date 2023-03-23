@@ -119,7 +119,8 @@ class Cartpole(ControlAffineSystem):
             a tensor of (batch_size,) booleans indicating whether the corresponding
             point is in this region.
         """
-        safe_mask = x.norm(dim=-1) <= 1.0
+        cart_pos = x[..., Cartpole.CART_POS]
+        safe_mask = cart_pos.abs() <= 1.0
 
         return safe_mask
 
@@ -132,7 +133,8 @@ class Cartpole(ControlAffineSystem):
             a tensor of (batch_size,) booleans indicating whether the corresponding
             point is in this region.
         """
-        unsafe_mask = x.norm(dim=-1) >= 1.5
+        cart_pos = x[..., Cartpole.CART_POS]
+        unsafe_mask = cart_pos.abs() >= 1.5
 
         return unsafe_mask
 
