@@ -73,7 +73,7 @@ def main(args):
     # TODO: Define the experiment suite
     # V_contour_experiment, rollout_experiment
     V_contour_thetas_experiment = CLFContourExperiment(
-        "theta",
+        "thetas",
         domain=[(-1.5, 1.5), (-1.5, 1.5)],
         n_grid=25,
         x_axis_index=Cartpole.POLE_ANGLE,
@@ -82,7 +82,7 @@ def main(args):
         y_axis_label="$\\dot{\\theta}$",
     )
     V_contour_xs_experiment = CLFContourExperiment(
-        "x",
+        "xs",
         domain=[(-1.5, 1.5), (-1.5, 1.5)],
         n_grid=25,
         x_axis_index=Cartpole.CART_POS,
@@ -99,7 +99,7 @@ def main(args):
         ]
     )
     rollout_xs_experiment = RolloutStateSpaceExperiment(
-        "Rollout_x",
+        "xs",
         start_x,
         Cartpole.CART_POS,
         "$x$",
@@ -110,7 +110,7 @@ def main(args):
         t_sim=5.0,
     )
     rollout_thetas_experiment = RolloutStateSpaceExperiment(
-        "Rollout_thetas",
+        "thetas",
         start_x,
         Cartpole.POLE_ANGLE,
         "$\\theta$",
@@ -175,7 +175,7 @@ def add_clbf_argparse_args(parser: ArgumentParser):
 
 def add_wandb_argparse_args(parser: ArgumentParser):
     parser.add_argument('--wandb-entity', type=str, default='dtch1997')
-    parser.add_argument('--wandb-group', type=str, default="")
+    parser.add_argument('--wandb-group', type=str, default="default")
     parser.add_argument('--wandb-project', type=str, default='NeuralCLBF')
     parser.add_argument('--wandb-run-name', type=str, default='cartpole')
     return parser
