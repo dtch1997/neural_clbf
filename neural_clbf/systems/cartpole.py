@@ -54,6 +54,10 @@ class Cartpole(ControlAffineSystem):
         self.length = 0.5  # actually half the pole's length
         self.force_mag = 10.0
 
+        # Angle at which to fail the episode
+        self.theta_threshold_radians = 12 * 2 * math.pi / 360
+        self.x_threshold = 2.4
+
         super().__init__(nominal_params, dt, controller_dt, use_linearized_controller, scenarios)
 
     def validate_params(self, params: Scenario) -> bool:
@@ -120,8 +124,11 @@ class Cartpole(ControlAffineSystem):
             point is in this region.
         """
         cart_pos = x[..., Cartpole.CART_POS]
-        safe_mask = cart_pos.abs() <= 1.0
-
+        pole_angle = x[..., Cartpole.POLE_ANGLE]
+        safe_mask = torch.logical_and(
+            cart_pos.abs() <= self.x_threshold,
+            pole_angle.abs() <= self.theta_threshold_radians,
+        )
         return safe_mask
 
     def unsafe_mask(self, x):
@@ -133,10 +140,8 @@ class Cartpole(ControlAffineSystem):
             a tensor of (batch_size,) booleans indicating whether the corresponding
             point is in this region.
         """
-        cart_pos = x[..., Cartpole.CART_POS]
-        unsafe_mask = cart_pos.abs() >= 1.5
-
-        return unsafe_mask
+        # Note: In the general case, this is not the same as the complement of the safe mask
+        return torch.logical_not(self.safe_mask(x))
 
     def goal_mask(self, x):
         """Return the mask of x indicating points in the goal set
