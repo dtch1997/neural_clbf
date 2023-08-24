@@ -32,16 +32,29 @@ class ControlAffineSystemEnv(gym.Env):
         reward = 1 - done
         return self.state_th.cpu().squeeze(0).numpy(), reward, done, {}
 
-class OfflineControlAffineSystemEnv(offline_env.OfflineEnv):
-    def __init__(self):
-        pass
+class OfflineControlAffineSystemEnv(ControlAffineSystemEnv, offline_env.OfflineEnv):
+    def __init__(self, system: ControlAffineSystem):
+        ControlAffineSystem.__init__(self, system)
     
+class OfflineInvertedPendulumEnv(OfflineControlAffineSystemEnv):
+    def __init__(self, dataset_path: str = 'neural_clbf/envs/data/inverted_pendulum_random.pkl'):
+        nominal_params = {"m": 1.0, "L": 1.0, "b": 0.01}
+        super(OfflineControlAffineSystemEnv, self).__init__(InvertedPendulum(nominal_params=nominal_params)) 
+        self.dataset_path = dataset_path
+
+    def get_dataset(self):
+        import pickle
+        with open(self.dataset_path, "rb") as f:
+            data = pickle.load(f)
+        return data
 
 if __name__ == "__main__":
 
-    nominal_params = {"m": 1.0, "L": 1.0, "b": 0.01}
-    system: ControlAffineSystem = InvertedPendulum(nominal_params=nominal_params)
-    env = ControlAffineSystemEnv(system)
+    import d4rl
+    env = OfflineInvertedPendulumEnv()
+    env = gym.wrappers.TimeLimit(env, max_episode_steps=100)
+    # Test dataset
+    dataset = d4rl.qlearning_dataset(env)
 
     # Sanity check env
     obs = env.reset()
