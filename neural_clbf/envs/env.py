@@ -30,6 +30,8 @@ class ControlAffineSystemEnv(gym.Env):
         )
         done = self.system.safe_mask(next_state_th).cpu().numpy()
         reward = 1 - done
+        done = bool(done)
+        reward = float(reward)
         return self.state_th.cpu().squeeze(0).numpy(), reward, done, {}
 
 class OfflineControlAffineSystemEnv(ControlAffineSystemEnv, offline_env.OfflineEnv):
