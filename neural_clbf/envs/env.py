@@ -29,9 +29,13 @@ class ControlAffineSystemEnv(gym.Env):
             self.state_th, action, self.system.dt
         )
         done = self.system.safe_mask(next_state_th).cpu().numpy()
-        reward = 1 - done
         done = bool(done)
-        reward = float(reward)
+
+        # Sparse goal-reaching reward
+        if self.system.goal_mask(next_state_th):
+            reward = 1.0
+        else:
+            reward = 0.0
         return self.state_th.cpu().squeeze(0).numpy(), reward, done, {}
 
 class OfflineControlAffineSystemEnv(ControlAffineSystemEnv, offline_env.OfflineEnv):
