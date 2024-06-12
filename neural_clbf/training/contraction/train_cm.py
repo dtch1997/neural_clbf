@@ -224,7 +224,7 @@ def do_training_turtlebot(args):
         "policy_hidden_units": 32,
         "learning_rate": 1e-3,
         "batch_size": args.batch_size,
-        "n_trajs": args.num_trajectories,
+        "n_trajs": args.n_trajectories,
         "controller_dt": 0.1,
         "sim_dt": 1e-2,
         "demonstration_noise": 0.3,
@@ -270,10 +270,8 @@ def do_training_turtlebot(args):
             control_bounds,
             0.3,  # validation_split
         )
-        n_pretrain_steps = 502
-        n_steps = 502
-        return my_trainer.run_training(
-            n_pretrain_steps, n_steps, 
+        my_trainer.run_training(
+            args.n_pretrain_steps, args.n_train_steps, 
             debug=True, sim_every_n_steps=100,
             finetune_M = args.finetune_M
         )
@@ -293,9 +291,9 @@ def do_training_turtlebot(args):
             control_bounds,
             0.3,  # validation_split
         )
-        n_steps = 502
-        return my_trainer.run_training(n_steps, debug=True, sim_every_n_steps=100)
+        my_trainer.run_training(args.n_train_steps, debug=True, sim_every_n_steps=100)
 
+    return my_trainer
 
 
 if __name__ == "__main__":
@@ -305,8 +303,10 @@ if __name__ == "__main__":
     parser.add_argument('-t', '--track', action='store_true', default=False)
     parser.add_argument('-p', '--two-stage', action='store_true', default=False)
     parser.add_argument('-f', '--finetune-M', action='store_true', default=False)
-    parser.add_argument('-n', '--num-trajectories', type=int, default=100)
+    parser.add_argument('-n', '--n-trajectories', type=int, default=100)
     parser.add_argument('-b', '--batch-size', type=int, default=100)
+    parser.add_argument('--n-train-steps', type=int, default=502)
+    parser.add_argument('--n-pretrain-steps', type=int, default=502)
     args = parser.parse_args()
 
     if args.track:
@@ -318,22 +318,8 @@ if __name__ == "__main__":
             sync_tensorboard=True,
             name='turtlebot',
         )
-    
-    (
-        contraction_network_list,
-        policy_network_list,
-        training_losses,
-        test_losses,
-    ) = do_training_turtlebot(args)
 
-    import pickle 
-    def save(obj, fn):
-        with open(fn, 'wb') as file:
-            pickle.dump(obj, file)
-            if args.track:
-                wandb.save(fn)
-
-    save(policy_network_list, 'policy_network.pkl')
-    save(contraction_network_list, 'contraction_network.pkl')
-    save(training_losses, 'training_losses.pkl')
-    save(test_losses, 'test_losses.pkl')
+    trainer = do_training_turtlebot(args)
+    torch.save(trainer.state_dict(), 'trainer.pth')
+    if args.track:
+        wandb.save('trainer.pth')
